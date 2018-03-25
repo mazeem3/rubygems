@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 # -*- ruby -*-
 #--
 # Copyright 2006 by Chad Fowler, Rich Kilmer, Jim Weirich and others.
@@ -39,8 +40,8 @@ require 'rubygems/errors'
 # Further RubyGems documentation can be found at:
 #
 # * {RubyGems Guides}[http://guides.rubygems.org]
-# * {RubyGems API}[http://www.rubydoc.info/github/rubygems/rubygems] (also available from
-#   <tt>gem server</tt>)
+# * {RubyGems API}[http://www.rubydoc.info/github/rubygems/rubygems]
+#   (also available from <tt>gem server</tt>)
 #
 # == RubyGems Plugins
 #
@@ -112,8 +113,6 @@ require 'rubygems/errors'
 # Thanks!
 #
 # -The RubyGems Team
-
-
 module Gem
   RUBYGEMS_DIR = File.dirname File.expand_path(__FILE__)
 
@@ -126,15 +125,15 @@ module Gem
     /djgpp/i,
     /mingw/i,
     /mswin/i,
-    /wince/i,
-  ]
+    /wince/i
+  ].freeze
 
   GEM_DEP_FILES = %w[
     gem.deps.rb
     gems.rb
     Gemfile
     Isolate
-  ]
+  ].freeze
 
   ##
   # Subdirectories in a gem repository
@@ -146,7 +145,7 @@ module Gem
     extensions
     gems
     specifications
-  ]
+  ].freeze
 
   ##
   # Subdirectories in a gem repository for default gems
@@ -154,7 +153,7 @@ module Gem
   REPOSITORY_DEFAULT_GEM_SUBDIRECTORIES = %w[
     gems
     specifications/default
-  ]
+  ].freeze
 
   ##
   # Exception classes used in a Gem.read_binary +rescue+ statement. Not all of
@@ -203,7 +202,7 @@ module Gem
   # activation succeeded or wasn't needed because it was already
   # activated. Returns false if it can't find the path in a gem.
 
-  def self.try_activate path
+  def self.try_activate(path)
     # finds the _latest_ version... regardless of loaded specs and their deps
     # if another gem had a requirement that would mean we shouldn't
     # activate the latest version, then either it would already be activated
@@ -215,17 +214,15 @@ module Gem
     return true if spec.activated?
 
     begin
-      spec.activate
-    rescue Gem::LoadError => e # this could fail due to gem dep collisions, go lax
+      spec.activate # this could fail due to gem dep collisions, go lax
+    rescue Gem::LoadError => e
       spec_by_name = Gem::Specification.find_by_name(spec.name)
-      if spec_by_name.nil?
-        raise e
-      else
-        spec_by_name.activate
-      end
+
+      raise e if spec_by_name.nil?
+      spec_by_name.activate
     end
 
-    return true
+    true
   end
 
   def self.needs
@@ -236,9 +233,13 @@ module Gem
     finish_resolve rs
   end
 
-  def self.finish_resolve(request_set=Gem::RequestSet.new)
+  def self.finish_resolve(request_set = Gem::RequestSet.new)
     request_set.import Gem::Specification.unresolved_deps.values
-    request_set.import Gem.loaded_specs.values.map {|s| Gem::Dependency.new(s.name, s.version) }
+    specs = Gem.loaded_specs.values.map do |s|
+      Gem::Dependency.new(s.name, s.version)
+    end
+
+    request_set.import specs
 
     request_set.resolve_current.each do |s|
       s.full_spec.activate
@@ -263,7 +264,7 @@ module Gem
     find_spec_for_exe(name, exec_name, requirements).bin_file exec_name
   end
 
-  def self.find_spec_for_exe name, exec_name, requirements
+  def self.find_spec_for_exe(name, exec_name, requirements)
     dep = Gem::Dependency.new name, requirements
 
     loaded = Gem.loaded_specs[name]
@@ -271,19 +272,23 @@ module Gem
     return loaded if loaded && dep.matches_spec?(loaded)
 
     find_specs = proc { dep.matching_specs(true) }
-    if dep.to_s == "bundler (>= 0.a)"
-      specs = Gem::BundlerVersionFinder.without_filtering(&find_specs)
-    else
-      specs = find_specs.call
+    specs = if dep.to_s == "bundler (>= 0.a)"
+              Gem::BundlerVersionFinder.without_filtering(&find_specs)
+            else
+              find_specs.call
+            end
+
+    if exec_name
+      specs = specs.find_all do |spec|
+        spec.executables.include? exec_name
+      end
     end
 
-    specs = specs.find_all { |spec|
-      spec.executables.include? exec_name
-    } if exec_name
-
-    unless spec = specs.first
+    unless (spec = specs.first)
       msg = "can't find gem #{dep} with executable #{exec_name}"
-      if name == "bundler" && bundler_message = Gem::BundlerVersionFinder.missing_version_message
+      if name == "bundler" &&
+         (bundler_message = Gem::BundlerVersionFinder.missing_version_message)
+
         msg = bundler_message
       end
       raise Gem::GemNotFoundException, msg
@@ -304,7 +309,7 @@ module Gem
   #
   # This method should *only* be used in bin stub files.
 
-  def self.activate_bin_path name, exec_name, requirement # :nodoc:
+  def self.activate_bin_path(name, exec_name, requirement) # :nodoc:
     spec = find_spec_for_exe name, exec_name, [requirement]
     Gem::LOADED_SPECS_MUTEX.synchronize do
       spec.activate
@@ -323,7 +328,7 @@ module Gem
   ##
   # The path where gem executables are to be installed.
 
-  def self.bindir(install_dir=Gem.dir)
+  def self.bindir(install_dir = Gem.dir)
     return File.join install_dir, 'bin' unless
       install_dir.to_s == Gem.default_dir.to_s
     Gem.default_bindir
@@ -397,7 +402,7 @@ module Gem
   def self.paths=(env)
     clear_paths
     target = {}
-    env.each_pair do |k,v|
+    env.each_pair do |k, v|
       case k
       when 'GEM_HOME', 'GEM_PATH', 'GEM_SPEC_CACHE'
         case v
@@ -405,11 +410,11 @@ module Gem
           target[k] = v
         when Array
           unless Gem::Deprecate.skip
-            warn <<-eowarn
-Array values in the parameter to `Gem.paths=` are deprecated.
-Please use a String or nil.
-An Array (#{env.inspect}) was passed in from #{caller[3]}
-            eowarn
+            warn <<-WARN.gsub(/^\s+/, "")
+              Array values in the parameter to `Gem.paths=` are deprecated.
+              Please use a String or nil.
+              An Array (#{env.inspect}) was passed in from #{caller[3]}
+            WARN
           end
           target[k] = v.join File::PATH_SEPARATOR
         end
@@ -447,7 +452,7 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
   #
   # World-writable directories will never be created.
 
-  def self.ensure_gem_subdirectories dir = Gem.dir, mode = nil
+  def self.ensure_gem_subdirectories(dir = Gem.dir, mode = nil)
     ensure_subdirectories(dir, mode, REPOSITORY_SUBDIRECTORIES)
   end
 
@@ -460,13 +465,13 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
   #
   # World-writable directories will never be created.
 
-  def self.ensure_default_gem_subdirectories dir = Gem.dir, mode = nil
+  def self.ensure_default_gem_subdirectories(dir = Gem.dir, mode = nil)
     ensure_subdirectories(dir, mode, REPOSITORY_DEFAULT_GEM_SUBDIRECTORIES)
   end
 
-  def self.ensure_subdirectories dir, mode, subdirs # :nodoc:
+  def self.ensure_subdirectories(dir, mode, subdirs) # :nodoc:
     old_umask = File.umask
-    File.umask old_umask | 002
+    File.umask old_umask | 0o002
 
     require 'fileutils'
 
@@ -475,9 +480,13 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
     options[:mode] = mode if mode
 
     subdirs.each do |name|
-      subdir = File.join dir, name
-      next if File.exist? subdir
-      FileUtils.mkdir_p subdir, options rescue nil
+      begin
+        subdir = File.join dir, name
+        next if File.exist? subdir
+        FileUtils.mkdir_p subdir, options
+      rescue SystemCallError
+        nil
+      end
     end
   ensure
     File.umask old_umask
@@ -488,7 +497,7 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
   # distinction as extensions cannot be shared between the two.
 
   def self.extension_api_version # :nodoc:
-    if 'no' == RbConfig::CONFIG['ENABLE_SHARED'] then
+    if RbConfig::CONFIG['ENABLE_SHARED'] == 'no'
       "#{ruby_api_version}-static"
     else
       ruby_api_version
@@ -507,14 +516,14 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
   # Note that find_files will return all files even if they are from different
   # versions of the same gem.  See also find_latest_files
 
-  def self.find_files(glob, check_load_path=true)
+  def self.find_files(glob, check_load_path = true)
     files = []
 
     files = find_files_from_load_path glob if check_load_path
 
-    gem_specifications = @gemdeps ? Gem.loaded_specs.values : Gem::Specification.stubs
+    specs = @gemdeps ? Gem.loaded_specs.values : Gem::Specification.stubs
 
-    files.concat gem_specifications.map { |spec|
+    files.concat specs.map { |spec|
       spec.matches_for_glob("#{glob}#{Gem.suffix_pattern}")
     }.flatten
 
@@ -522,13 +531,15 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
     # the spec dirs directly, so we prune.
     files.uniq! if check_load_path
 
-    return files
+    files
   end
 
-  def self.find_files_from_load_path glob # :nodoc:
-    $LOAD_PATH.map { |load_path|
+  def self.find_files_from_load_path(glob) # :nodoc:
+    files = $LOAD_PATH.map do |load_path|
       Dir["#{File.expand_path glob, load_path}#{Gem.suffix_pattern}"]
-    }.flatten.select { |file| File.file? file.untaint }
+    end
+
+    files.flatten.select { |file| File.file? file.untaint }
   end
 
   ##
@@ -543,7 +554,7 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
   # Unlike find_files, find_latest_files will return only files from the
   # latest version of a gem.
 
-  def self.find_latest_files(glob, check_load_path=true)
+  def self.find_latest_files(glob, check_load_path = true)
     files = []
 
     files = find_files_from_load_path glob if check_load_path
@@ -556,7 +567,7 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
     # the spec dirs directly, so we prune.
     files.uniq! if check_load_path
 
-    return files
+    files
   end
 
   ##
@@ -578,8 +589,8 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
 
   def self.find_home
     Dir.home
-  rescue
-    if Gem.win_platform? then
+  rescue ArgumentError
+    if Gem.win_platform?
       File.expand_path File.join(ENV['HOMEDRIVE'] || ENV['SystemDrive'], '/')
     else
       File.expand_path "/"
@@ -634,7 +645,7 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
   #   Fetching: minitest-3.0.1.gem (100%)
   #   => [#<Gem::Specification:0x1013b4528 @name="minitest", ...>]
 
-  def self.install name, version = Gem::Requirement.default, *options
+  def self.install(name, version = Gem::Requirement.default, *options)
     require "rubygems/dependency_installer"
     inst = Gem::DependencyInstaller.new(*options)
     inst.install name, version
@@ -652,7 +663,7 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
 
   ## Set the default RubyGems API host.
 
-  def self.host= host
+  def self.host=(host)
     # TODO: move to utils
     @host = host
   end
@@ -685,6 +696,7 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
     rescue Gem::LoadError
       # It's OK if the user does not have the psych gem installed.  We will
       # attempt to require the stdlib version
+      nil
     end
 
     begin
@@ -692,6 +704,7 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
       require 'psych'
     rescue ::LoadError
       # If we can't load psych, thats fine, go on.
+      nil
     else
       # If 'yaml' has already been required, then we have to
       # be sure to switch it over to the newly loaded psych.
@@ -729,8 +742,8 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
 
   def self.location_of_caller(depth = 1)
     caller[depth] =~ /(.*?):(\d+).*?$/i
-    file = $1
-    lineno = $2.to_i
+    file = Regexp.last_match(1)
+    lineno = Regexp.last_match(2).to_i
 
     [file, lineno]
   end
@@ -754,9 +767,7 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
 
   def self.platforms
     @platforms ||= []
-    if @platforms.empty?
-      @platforms = [Gem::Platform::RUBY, Gem::Platform.local]
-    end
+    @platforms = [Gem::Platform::RUBY, Gem::Platform.local] if @platforms.empty?
     @platforms
   end
 
@@ -839,9 +850,9 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
   def self.prefix
     prefix = File.dirname RUBYGEMS_DIR
 
-    if prefix != File.expand_path(RbConfig::CONFIG['sitelibdir']) and
-       prefix != File.expand_path(RbConfig::CONFIG['libdir']) and
-       'lib' == File.basename(RUBYGEMS_DIR) then
+    if prefix != File.expand_path(RbConfig::CONFIG['sitelibdir']) &&
+       prefix != File.expand_path(RbConfig::CONFIG['libdir']) &&
+       File.basename(RUBYGEMS_DIR) == 'lib'
       prefix
     end
   end
@@ -862,36 +873,27 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
       f.read
     end
   rescue *READ_BINARY_ERRORS
-    File.open path, 'rb' do |f|
-      f.read
-    end
+    File.open path, 'rb', &:read
   rescue Errno::ENOLCK # NFS
-    if Thread.main != Thread.current
-      raise
-    else
-      File.open path, 'rb' do |f|
-        f.read
-      end
-    end
+    raise if Thread.main != Thread.current
+    File.open path, 'rb', &:read
   end
 
   ##
   # Safely write a file in binary mode on all platforms.
   def self.write_binary(path, data)
-    open(path, 'wb') do |io|
+    File.open(path, 'wb') do |io|
       begin
         io.flock(File::LOCK_EX)
       rescue *WRITE_BINARY_ERRORS
+        nil
       end
       io.write data
     end
   rescue Errno::ENOLCK # NFS
-    if Thread.main != Thread.current
-      raise
-    else
-      open(path, 'wb') do |io|
-        io.write data
-      end
+    raise if Thread.main != Thread.current
+    File.open(path, 'wb') do |io|
+      io.write data
     end
   end
 
@@ -899,9 +901,11 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
   # The path to the running Ruby interpreter.
 
   def self.ruby
-    if @ruby.nil? then
-      @ruby = File.join(RbConfig::CONFIG['bindir'],
-                        "#{RbConfig::CONFIG['ruby_install_name']}#{RbConfig::CONFIG['EXEEXT']}")
+    if @ruby.nil?
+      @ruby = File.join(
+        RbConfig::CONFIG['bindir'],
+        "#{RbConfig::CONFIG['ruby_install_name']}#{RbConfig::CONFIG['EXEEXT']}"
+      )
 
       @ruby = "\"#{@ruby}\"" if @ruby =~ /\s/
     end
@@ -928,7 +932,7 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
   ##
   # Returns the latest release-version specification for the gem +name+.
 
-  def self.latest_spec_for name
+  def self.latest_spec_for(name)
     dependency   = Gem::Dependency.new name
     fetcher      = Gem::SpecFetcher.fetcher
     spec_tuples, = fetcher.spec_for_dependency dependency
@@ -942,16 +946,19 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
   # Returns the latest release version of RubyGems.
 
   def self.latest_rubygems_version
-    latest_version_for('rubygems-update') or
-      raise "Can't find 'rubygems-update' in any repo. Check `gem source list`."
+    version = latest_version_for('rubygems-update')
+    raise "Can't find 'rubygems-update' in any repo. Check `gem source list`." \
+      unless version
+
+    version
   end
 
   ##
   # Returns the version of the latest release-version of gem +name+
 
-  def self.latest_version_for name
+  def self.latest_version_for(name)
     spec = latest_spec_for name
-    spec and spec.version
+    spec && spec.version
   end
 
   ##
@@ -961,9 +968,9 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
     return @ruby_version if defined? @ruby_version
     version = RUBY_VERSION.dup
 
-    if defined?(RUBY_PATCHLEVEL) && RUBY_PATCHLEVEL != -1 then
+    if defined?(RUBY_PATCHLEVEL) && RUBY_PATCHLEVEL != -1
       version << ".#{RUBY_PATCHLEVEL}"
-    elsif defined?(RUBY_REVISION) then
+    elsif defined?(RUBY_REVISION)
       version << ".dev.#{RUBY_REVISION}"
     end
 
@@ -994,12 +1001,8 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
   # DOC: This comment is not documentation about the method itself, it's
   # more of a code comment about the implementation.
 
-  def self.sources= new_sources
-    if !new_sources
-      @sources = nil
-    else
-      @sources = Gem::SourceList.from(new_sources)
-    end
+  def self.sources=(new_sources)
+    @sources = new_sources ? Gem::SourceList.from(new_sources) : nil
   end
 
   ##
@@ -1015,12 +1018,11 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
   def self.suffixes
     @suffixes ||= ['',
                    '.rb',
-                   *%w(DLEXT DLEXT2).map { |key|
+                   *%w[DLEXT DLEXT2].map do |key|
                      val = RbConfig::CONFIG[key]
-                     next unless val and not val.empty?
+                     next unless val && !val.empty?
                      ".#{val}"
-                   }
-                  ].compact.uniq
+                   end].compact.uniq
   end
 
   ##
@@ -1034,7 +1036,9 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
 
     elapsed = Time.now - now
 
+    # rubocop:disable Style/FormatString, Lint/FormatParameterMismatch
     ui.say "%2$*1$s: %3$3.3fs" % [-width, msg, elapsed] if display
+    # rubocop:enable Style/FormatString, Lint/FormatParameterMismatch
 
     value
   end
@@ -1055,7 +1059,11 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
   def self.use_paths(home, *paths)
     paths.flatten!
     paths.compact!
-    hash = { "GEM_HOME" => home, "GEM_PATH" => paths.empty? ? home : paths.join(File::PATH_SEPARATOR) }
+    hash = {
+      "GEM_HOME" => home,
+      "GEM_PATH" => paths.empty? ? home : paths.join(File::PATH_SEPARATOR)
+    }
+
     hash.delete_if { |_, v| v.nil? }
     self.paths = hash
   end
@@ -1071,9 +1079,9 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
   # Is this a windows platform?
 
   def self.win_platform?
-    if @@win_platform.nil? then
+    if @@win_platform.nil?
       ruby_platform = RbConfig::CONFIG['host_os']
-      @@win_platform = !!WIN_PATTERNS.find { |r| ruby_platform =~ r }
+      @@win_platform = !WIN_PATTERNS.find { |r| ruby_platform =~ r }.nil?
     end
 
     @@win_platform
@@ -1082,9 +1090,8 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
   ##
   # Load +plugins+ as Ruby files
 
-  def self.load_plugin_files plugins # :nodoc:
+  def self.load_plugin_files(plugins) # :nodoc:
     plugins.each do |plugin|
-
       # Skip older versions of the GemCutter plugin: Its commands are in
       # RubyGems proper now.
 
@@ -1092,7 +1099,7 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
 
       begin
         load plugin
-      rescue ::Exception => e
+      rescue ::Exception => e # rubocop:disable Lint/RescueException
         details = "#{plugin.inspect}: #{e.message} (#{e.class})"
         warn "Error loading RubyGems plugin #{details}"
       end
@@ -1150,7 +1157,7 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
   # execution of arbitrary code when used from directories outside your
   # control.
 
-  def self.use_gemdeps path = nil
+  def self.use_gemdeps(path = nil)
     raise_exception = path
 
     path ||= ENV['RUBYGEMS_GEMDEPS']
@@ -1158,7 +1165,7 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
 
     path = path.dup
 
-    if path == "-" then
+    if path == "-"
       Gem::Util.traverse_parents Dir.pwd do |directory|
         dep_file = GEM_DEP_FILES.find { |f| File.file?(f) }
 
@@ -1171,7 +1178,7 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
 
     path.untaint
 
-    unless File.file? path then
+    unless File.file? path
       return unless raise_exception
 
       raise ArgumentError, "Unable to find gem dependencies file at #{path}"
@@ -1198,9 +1205,12 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
       end
 
     end
-  rescue => e
+  rescue => e # rubocop:disable Style/RescueStandardError
     case e
-    when Gem::LoadError, Gem::UnsatisfiableDependencyError, (defined?(Bundler::GemNotFound) ? Bundler::GemNotFound : Gem::LoadError)
+    when Gem::LoadError,
+         Gem::UnsatisfiableDependencyError,
+         defined?(Bundler::GemNotFound) ? Bundler::GemNotFound : Gem::LoadError
+
       warn e.message
       warn "You may need to `gem install -g` to install missing gems"
       warn ""
@@ -1223,7 +1233,6 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
   # methods, and then we switch over to `class << self` here. Pick one or the
   # other.
   class << self
-
     ##
     # Hash of loaded Gem::Specification keyed by name
 
@@ -1248,10 +1257,13 @@ An Array (#{env.inspect}) was passed in from #{caller[3]}
     #
 
     def register_default_spec(spec)
-      new_format = Gem.default_gems_use_full_paths? || spec.require_paths.any? {|path| spec.files.any? {|f| f.start_with? path } }
+      # rubocop:disable Metrics/LineLength
+      new_format = Gem.default_gems_use_full_paths? ||
+                   spec.require_paths.any? { |path| spec.files.any? { |f| f.start_with? path } }
+      # rubocop:enable Metrics/LineLength
 
       if new_format
-        prefix_group = spec.require_paths.map {|f| f + "/"}.join("|")
+        prefix_group = spec.require_paths.map { |f| f + "/" }.join("|")
         prefix_pattern = /^(#{prefix_group})/
       end
 
@@ -1373,15 +1385,17 @@ begin
 
   require 'rubygems/defaults/operating_system'
 rescue LoadError
+  nil
 end
 
-if defined?(RUBY_ENGINE) then
+if defined?(RUBY_ENGINE)
   begin
     ##
     # Defaults the Ruby implementation wants to provide for RubyGems
 
     require "rubygems/defaults/#{RUBY_ENGINE}"
   rescue LoadError
+    nil
   end
 end
 

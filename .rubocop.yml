@@ -1,0 +1,29 @@
+Style/StringLiterals:
+  Enabled: false
+
+Style/MutableConstant:
+  Enabled: false
+
+Metrics/AbcSize:
+  Enabled: false
+
+Metrics/PerceivedComplexity:
+  Enabled: false
+
+Metrics/CyclomaticComplexity:
+  Enabled: false
+
+Metrics/ModuleLength:
+  Enabled: false
+
+Metrics/MethodLength:
+  Enabled: false
+
+Performance/Caller:
+  Enabled: false
+
+Style/SpecialGlobalVars:
+  Enabled: false
+
+Style/ClassVars:
+  Enabled: false
