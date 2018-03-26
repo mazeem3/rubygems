@@ -63,6 +63,7 @@ when %w(before_script)
   end
 when %w(script)
   if TOOL.rubygems?
+    run('rake rubocop')
     run('rake test')
   else
     run('rake', %w(spec:travis -t))

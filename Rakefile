@@ -10,6 +10,10 @@ rescue ::LoadError
   require 'yaml'
 end
 
+RUBOCOP_FILES_TO_TEST = [
+  'lib/rubygems.rb'
+]
+
 desc "Setup Rubygems dev environment"
 task :setup => ["bundler:checkout"] do
   gemspec = Gem::Specification.load(File.expand_path("../rubygems-update.gemspec", __FILE__))
@@ -100,6 +104,19 @@ rescue LoadError
   namespace :vendor do
     task(:molinillo) { abort "Install the automatiek gem to be able to vendor gems." }
   end
+end
+
+begin
+  gem "rubocop", "~> 0.54.0"
+  require "rubocop"
+
+  task :rubocop do
+    cli = RuboCop::CLI.new
+    result = cli.run(RUBOCOP_FILES_TO_TEST)
+    abort('RuboCop failed!') if result.nonzero?
+  end
+rescue LoadError
+  task(:rubocop) { abort "Install the rubocop gem (~> 0.54.0) to run a static analysis" }
 end
 
 # --------------------------------------------------------------------
