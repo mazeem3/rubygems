@@ -56,6 +56,9 @@ when %w(before_script)
     if RUBY_VERSION >= "2.5.0" && RUBY_VERSION < "2.6.0"
       run('gem', %w(install bundler -v 1.16.1))
     end
+
+    run('gem', 'install rubocop -v "~> 0.54.0"')
+
     run('gem', %w(list --details))
     run('gem', %w(env))
   else
